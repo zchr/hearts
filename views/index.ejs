@@ -23,10 +23,10 @@
         </div>
       </form>
     </nav>
-    <div id="app" class="container mt-6">
+    <div id="app" class="container-fluid mt-6">
       <div class="row mt-3">
-        <div class="col-sm-12 overflow-auto">
-          <ul class="list-group list-group-horizontal">
+        <div class="col-sm-12">
+          <ul class="list-group list-group-horizontal overflow-auto">
             <li class="list-group-item d-flex flex-column align-items-center">
               <p v-if="game.round == 0">Deal to start</p>
               <p v-else>Round {{ game.round }}</p>
@@ -36,7 +36,7 @@
               v-for="player in game.players"
               v-bind:class="{ active: player.id == turn}">
               <div v-if="player.id == myPlayerId && editingName" class="input-group">
-                <input type="text" class="form-control" v-model="game.players[me.id].name">
+                <input type="text" class="form-control" v-model="game.players[me.id].name" style="width: 150px;">
                 <div class="input-group-append">
                   <button class="input-group-text" @click="changeName"><i class="fas fa-save"></i></button>
                 </div>
@@ -92,10 +92,10 @@
         </div>
       </div>
       <div class="row mt-3">
-        <div v-if="me" class="col-sm-12 overflow-auto">
+        <div v-if="me" class="col-sm-12">
           <h1 class="h2">My cards</h1>
           <p v-if="me.cards.length == 0">Out of cards. <b>Deal</b> using the button in the top left corner.</p>
-          <ul class="list-group list-group-horizontal list-group-flush">
+          <ul class="list-group list-group-horizontal list-group-flush overflow-auto">
             <li v-for="(card, index) in me.cards" 
               class="list-group-item px-1"
               style="border-top-width: 0px; border-bottom-width: 0">
@@ -118,7 +118,7 @@
                 style="border-top-width: 0px; border-bottom-width: 0">
                 <div class="d-flex flex-column justify-content-center">
                   <img width="75" height="105" :src="card.images.png">
-                  <button class="btn btn-outline-primary" 
+                  <button class="btn btn-outline-primary mt-1" 
                     @click="undoTrade(myTradePartner.id, index)">Undo</button>
                 </div>
               </li>
