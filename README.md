@@ -1,8 +1,8 @@
 # Hearts
 I wanted to play Hearts with three friends without the need to make an account, install an app, or get paired with strangers/robots. So I made this.
 
-![Screenshot choosing cards to trade](https://i.imgur.com/tYsfzyn.png)
-![Screenshot playing a trick](https://i.imgur.com/Fw3JqJh.png)
+<img alt="Screenshot choosing cards to trade" src="https://i.imgur.com/tYsfzyn.png" width=400>
+<img alt="Screenshot playing a trick" src="https://i.imgur.com/Fw3JqJh.png)" width=400>
 
 #### Things it does
 _Please file an issue (or PR) if there is something else you want Hearts to do._
