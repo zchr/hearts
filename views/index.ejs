@@ -25,69 +25,77 @@
     </nav>
     <div id="app" class="container mt-6">
       <div class="row mt-3">
-        <ul class="list-group list-group-horizontal-md">
-          <li class="list-group-item d-flex flex-column align-items-center">
-            <p v-if="game.round == 0">Deal to start</p>
-            <p v-else>Round {{ game.round }}</p>
-            <button class="btn btn-outline-success" @click="deal">Deal</button>
-          </li>
-          <li class="list-group-item" 
-            v-for="player in game.players"
-            v-bind:class="{ active: player.id == turn}">
-            <div v-if="player.id == myPlayerId && editingName" class="input-group">
-              <input type="text" class="form-control" v-model="game.players[me.id].name">
-              <div class="input-group-append">
-                <button class="input-group-text" @click="changeName"><i class="fas fa-save"></i></button>
+        <div class="col-sm-12 overflow-auto">
+          <ul class="list-group list-group-horizontal">
+            <li class="list-group-item d-flex flex-column align-items-center">
+              <p v-if="game.round == 0">Deal to start</p>
+              <p v-else>Round {{ game.round }}</p>
+              <button class="btn btn-outline-success" @click="deal">Deal</button>
+            </li>
+            <li class="list-group-item" 
+              v-for="player in game.players"
+              v-bind:class="{ active: player.id == turn}">
+              <div v-if="player.id == myPlayerId && editingName" class="input-group">
+                <input type="text" class="form-control" v-model="game.players[me.id].name">
+                <div class="input-group-append">
+                  <button class="input-group-text" @click="changeName"><i class="fas fa-save"></i></button>
+                </div>
               </div>
-            </div>
-            <div v-else>
-              <h1 class="h3">
-                {{ player.name }}
-                <button v-if="player.id == myPlayerId" @click="editName" class="btn btn-outline-dark btn-sm"><i class="fas fa-pen"></i></button>
-              </h1>
-            </div>
-            <p>Points: {{ player.points }}</p>
-          </li>
-        </ul>
-      </div>
-      <div v-if="myPlayerId == null">
-        <div class="row mt-3">
-          <h1 class="h2">Choose a player</h1>
-        </div>
-        <div class="row">
-          <ul class="list-group">
-            <li v-for="player in availablePlayers" 
-              class="list-group-item d-flex justify-content-between align-items-center">
-              <span class="pr-5">{{ player.name }}</span>
-              <button class="btn btn-primary" @click="join(player.id)">Claim</button>
+              <div v-else>
+                <h1 class="h3">
+                  {{ player.name }}
+                  <button v-if="player.id == myPlayerId" @click="editName" class="btn btn-outline-dark btn-sm"><i class="fas fa-pen"></i></button>
+                </h1>
+              </div>
+              <p>Points: {{ player.points }}</p>
             </li>
           </ul>
         </div>
       </div>
+      <div v-if="myPlayerId == null">
+        <div class="row mt-3">
+          <h1 class="h2 col-sm-12">Choose a player</h1>
+        </div>
+        <div class="row">
+          <div class="col-sm-12">
+            <ul class="list-group">
+              <li v-for="player in availablePlayers" 
+                class="list-group-item d-flex justify-content-between align-items-center">
+                <span class="pr-5">{{ player.name }}</span>
+                <button class="btn btn-primary" @click="join(player.id)">Claim</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
       <div class="row mt-3 justify-content-between">
-        <h1 class="h2">Current trick</h1>
-        <div v-if="trickIsOver">
-          <button class="btn btn-primary" @click="endTrick">End trick</button>
+        <div class="col-sm-12">
+          <h1 class="h2">Current trick</h1>
+          <div v-if="trickIsOver">
+            <button class="btn btn-primary" @click="endTrick">End trick</button>
+          </div>
         </div>
       </div>
       <div class="row">
-        <p v-if="game.trick.length == 0">No cards have been played yet</p>
-        <ul class="list-group list-group-horizontal-md list-group-flush">
-          <li v-for="(card, index) in game.trick" 
-            class="list-group-item px-1"
-            style="border-top-width: 0px; border-bottom-width: 0">
-            <div class="d-flex flex-column justify-content-center">
-              <img width="75" height="105" :src="card.images.png">
-              <button class="btn btn-outline-secondary mt-1" v-if="card.playerId == myPlayerId" @click="undoPlay(index)">Undo</button>
-            </div>
-          </li>
-        </ul>
+        <div class="col-sm-12">
+          <p v-if="game.trick.length == 0">No cards have been played yet</p>
+          <ul class="list-group list-group-horizontal list-group-flush">
+            <li v-for="(card, index) in game.trick" 
+              class="list-group-item px-1"
+              style="border-top-width: 0px; border-bottom-width: 0">
+              <div class="d-flex flex-column justify-content-center">
+                <img width="75" height="105" :src="card.images.png">
+                <button class="btn btn-outline-secondary mt-1" v-if="card.playerId == myPlayerId" @click="undoPlay(index)">Undo</button>
+              </div>
+            </li>
+          </ul>
+        </div>
       </div>
       <div class="row mt-3">
-        <div v-if="me">
+        <div v-if="me" class="col-sm-12 overflow-auto">
           <h1 class="h2">My cards</h1>
           <p v-if="me.cards.length == 0">Out of cards. <b>Deal</b> using the button in the top left corner.</p>
-          <ul class="list-group list-group-horizontal-md list-group-flush">
+          <ul class="list-group list-group-horizontal list-group-flush">
             <li v-for="(card, index) in me.cards" 
               class="list-group-item px-1"
               style="border-top-width: 0px; border-bottom-width: 0">
@@ -104,7 +112,7 @@
           </ul>
           <div v-if="!allPlayersTraded && game.round > 0">
             <h2 class="h3">To be traded ({{ getTradeDescription(game.round) }})</h2>
-            <ul class="list-group list-group-horizontal-md list-group-flush">
+            <ul class="list-group list-group-horizontal list-group-flush">
               <li v-for="(card, index) in game.players[myTradePartner.id].cardsFromTrade"
                 class="list-group-item px-1"
                 style="border-top-width: 0px; border-bottom-width: 0">
