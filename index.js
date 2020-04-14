@@ -7,11 +7,11 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, './views'));
 
 app.get('/', function(req, res) {
-    res.render('lobby');
+    res.render('lobby', { gtag: process.env.GTAG });
 });
 
 app.get('/game/:gameId', function(req, res) {
-    res.render('index');
+    res.render('index', { gtag: process.env.GTAG });
 });
 
 io.on('connection', function(socket){
