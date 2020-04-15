@@ -22,13 +22,19 @@ io.on('connection', function(socket){
         }
     });
 
+    socket.on('sendGame', function(socketId, game) {
+        socket.to(socketId).emit('game', game);
+    });
+
     socket.on('join', function(gameId) {
         socket.join(gameId, () => {
-            const players = io.sockets.adapter.rooms[gameId];
-        
+            const players = Object.keys(io.sockets.adapter.rooms[gameId].sockets);
+
             if (players.length > 1) {
+                const anotherPlayer = players.find(player => player != socket.id);
                 // there are others in the room; request the game from one
-                socket.broadcast.to(gameId).emit('getGame');
+                // include the socket's id so we know where to send the game to
+                socket.to(anotherPlayer).emit('getGame', socket.id);
             }
         });
     });

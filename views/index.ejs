@@ -68,10 +68,10 @@
           </div>
         </div>
       </div>
-      <div class="row mt-3 justify-content-between">
-        <div class="col-sm-12">
+      <div class="row mt-3">
+        <div class="col-sm-6 d-flex">
           <h1 class="h2">Current trick</h1>
-          <div v-if="trickIsOver">
+          <div v-if="trickIsOver" class="ml-3">
             <button class="btn btn-primary" @click="endTrick">End trick</button>
           </div>
         </div>
@@ -93,7 +93,12 @@
       </div>
       <div class="row mt-3">
         <div v-if="me" class="col-sm-12">
-          <h1 class="h2">My cards</h1>
+          <div class="d-flex">
+            <h1 class="h2">My cards</h1>
+            <div class="ml-3">
+              <button class="btn btn-outline-dark" @click="sort">Sort</button>
+            </div>
+          </div>
           <p v-if="me.cards.length == 0">Out of cards. <b>Deal</b> using the button in the top left corner.</p>
           <ul class="list-group list-group-horizontal list-group-flush overflow-auto">
             <li v-for="(card, index) in me.cards" 
@@ -149,8 +154,8 @@
         data: {
           myPlayerId: null,
           editingName: false,
-          deck: null,
           game: {
+            deck: null,
             trick: [],
             turnStack: [],
             round: 0,
@@ -200,8 +205,10 @@
             this.game = game;
           });
 
-          socket.on('getGame', () => {
-            socket.emit('played', this.game);
+          socket.on('updateGame', (updates) => { this.updateGame(updates); });
+
+          socket.on('getGame', (socketId) => {
+            socket.emit('sendGame', socketId, this.game);
           });
 
           const gameId = window.location.pathname.replace('game/');
@@ -242,6 +249,10 @@
           }
         },
         methods: {
+          updateGame: function(updates) {
+            // merge a portion of the game received through Socket.io with this.game
+
+          },
           getDeck: function() {
             return fetch('https://deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1')
               .then(res => {
@@ -249,18 +260,29 @@
               });
           },
           shuffle: function() {
-            return fetch(`https://deckofcardsapi.com/api/deck/${this.deck}/shuffle/`);
+            return fetch(`https://deckofcardsapi.com/api/deck/${this.game.deck}/shuffle/`);
           },
           getCards: function() {
-            return fetch(`https://deckofcardsapi.com/api/deck/${this.deck}/draw/?count=52`)
+            return fetch(`https://deckofcardsapi.com/api/deck/${this.game.deck}/draw/?count=52`)
               .then(res => {
                 return res.json();
               });
           },
           deal: async function() {
-            if (!this.deck) {
+            // if mid-round, confirm that you want to re-deal
+            if (this.game.players[0].cards.length + 
+            this.game.players[1].cards.length + 
+            this.game.players[2].cards.length + 
+            this.game.players[3].cards.length > 0) {
+              const confirmDeal = window.confirm('Re-dealing will scrap the current round and starta new one without assigning points. Are you sure you want to deal?');
+              if (!confirmDeal) {
+                return;
+              }    
+            }
+
+            if (!this.game.deck) {
               const deck = await this.getDeck();
-              this.deck = deck.deck_id;
+              this.game.deck = deck.deck_id;
             } else {
               await this.shuffle();
             }
@@ -318,6 +340,21 @@
             }
 
             socket.emit('played', this.game);
+          },
+          sort: function() {
+            const suitOrder = {
+              CLUBS: 100,
+              DIAMONDS: 200,
+              HEARTS: 300,
+              SPADES: 400
+            }
+
+            this.me.cards.sort((a, b) => {
+              const aSortValue = suitOrder[a.suit] + a.numericValue;
+              const bSortValue = suitOrder[b.suit] + b.numericValue;
+              
+              return aSortValue - bSortValue;
+            });
           },
           play: function(playerId, cardIndex) {
             if (playerId != this.turn) {
@@ -432,7 +469,7 @@
               const hearts = this.game.players[i].cardsFromTricks.filter(card => card.suit == 'HEARTS').length;
 
               // -26 if they shot the moon
-              if (hearts == 14) {
+              if (hearts == 13 && codes.includes('QS') && codes.includes('JD')) {
                 this.game.players[i].points -= 26;
                 return;
               }
@@ -440,9 +477,9 @@
               // 1 point per heart
               this.game.players[i].points += hearts;
 
-              // 12 extra points for QH
-              if (codes.includes('QH')) {
-                this.game.players[i].points += 12;
+              // 13 extra points for QS
+              if (codes.includes('QS')) {
+                this.game.players[i].points += 13;
               }
 
               // -10 points for JD
