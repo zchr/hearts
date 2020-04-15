@@ -14,16 +14,27 @@ app.get('/game/:gameId', function(req, res) {
     res.render('index', { gtag: process.env.GTAG });
 });
 
-io.on('connection', function(socket){
-    socket.on('played', function(game) {
-        const gameId = Object.keys(socket.rooms).find(room => room != socket.id);
+io.on('connection', function(socket) {
+    function getGameId() {
+        return Object.keys(socket.rooms).find(room => room != socket.id);
+    }
+
+    socket.on('sendGameChanges', function(updates, fullGameUpdate) {
+        const gameId = getGameId();
         if (gameId) {
-            socket.broadcast.to(gameId).emit('game', game);
+            socket.broadcast.to(gameId).emit('updateGame', updates, fullGameUpdate);
+        }
+    });
+
+    socket.on('sendUpdatedPlayer', function(playerId, updates) {
+        const gameId = getGameId();
+        if (gameId) {
+            socket.broadcast.to(gameId).emit('updatePlayer', playerId, updates);
         }
     });
 
     socket.on('sendGame', function(socketId, game) {
-        socket.to(socketId).emit('game', game);
+        socket.to(socketId).emit('updateGame', game);
     });
 
     socket.on('join', function(gameId) {
@@ -34,7 +45,7 @@ io.on('connection', function(socket){
                 const anotherPlayer = players.find(player => player != socket.id);
                 // there are others in the room; request the game from one
                 // include the socket's id so we know where to send the game to
-                socket.to(anotherPlayer).emit('getGame', socket.id);
+                socket.to(anotherPlayer).emit('requestGame', socket.id);
             }
         });
     });

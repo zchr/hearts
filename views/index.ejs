@@ -95,7 +95,7 @@
         <div v-if="me" class="col-sm-12">
           <div class="d-flex">
             <h1 class="h2">My cards</h1>
-            <div class="ml-3">
+            <div v-if="me.cards.length > 0" class="ml-3">
               <button class="btn btn-outline-dark" @click="sort">Sort</button>
             </div>
           </div>
@@ -201,29 +201,35 @@
         created: function() {
           this.myPlayerId = myPlayerId;
 
-          socket.on('game', game => {
-            this.game = game;
+          socket.on('updateGame', updates => { 
+            this.game = updates;
           });
 
-          socket.on('updateGame', (updates) => { this.updateGame(updates); });
+          socket.on('updatePlayer', (playerId, updates) => {
+            Vue.set(this.game.players, playerId, Object.assign({}, this.game.players[playerId], updates));
+          });
 
-          socket.on('getGame', (socketId) => {
+          socket.on('requestGame', (socketId) => {
             socket.emit('sendGame', socketId, this.game);
           });
 
           const gameId = window.location.pathname.replace('game/');
           socket.emit('join', gameId);
 
-          window.onbeforeunload = () => {
+          window.addEventListener('beforeunload', (e) => {
             if (myPlayerId == null) {
               // nothing to clean up if no playerId
               return; 
             }
 
+            e.returnValue = '';
+
             this.game.players[myPlayerId].claimed = false;
 
-            socket.emit('played', this.game);
-          }
+            socket.emit('sendUpdatedPlayer', this.me.id, { claimed: false }, function() {
+              delete e.returnValue
+            });
+          });
         },
         computed: {
           allPlayersTraded: function() {
@@ -249,10 +255,6 @@
           }
         },
         methods: {
-          updateGame: function(updates) {
-            // merge a portion of the game received through Socket.io with this.game
-
-          },
           getDeck: function() {
             return fetch('https://deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1')
               .then(res => {
@@ -339,14 +341,15 @@
               this.setTurnStack(startingPlayerId);
             }
 
-            socket.emit('played', this.game);
+            // this is a big enough change that the whole game should be resent
+            socket.emit('sendGameChanges', this.game);
           },
           sort: function() {
-            const suitOrder = {
+            const suitOrder = { /* black, red, black, red */
               CLUBS: 100,
               DIAMONDS: 200,
-              HEARTS: 300,
-              SPADES: 400
+              SPADES: 300,
+              HEARTS: 400,
             }
 
             this.me.cards.sort((a, b) => {
@@ -365,22 +368,25 @@
             card.playerId = playerId;
             
             this.game.trick.push(card);
-
             this.game.turnStack.pop();
 
-            socket.emit('played', this.game);
+            socket.emit('sendGameChanges', this.game);
           },
           undoPlay: function(cardIndex) {
             const card = this.game.trick.splice(cardIndex, 1)[0];
+            
             this.game.players[card.playerId].cards.push(card);
-
             this.game.turnStack.push(card.playerId);
 
-            socket.emit('played', this.game);
+            socket.emit('sendGameChanges', this.game);
           },
           changeName: function() {
+            if (this.me.name.length == 0) {
+              return;
+            }
+
             this.editingName = false;
-            socket.emit('played', this.game);
+            socket.emit('sendUpdatedPlayer', this.me.id, { name: this.me.name });
           },
           editName: function() {
             this.editingName = true;
@@ -404,7 +410,7 @@
               this.setTurnStack(winningPlayerId);
             }
 
-            socket.emit('played', this.game);
+            socket.emit('sendGameChanges', this.game);
           },
           setTurnStack: function(playerId) {
             const reverseTurnOrder = [];
@@ -442,7 +448,7 @@
               this.setTurnStack(startingPlayerId);
             }
 
-            socket.emit('played', this.game);
+            socket.emit('sendGameChanges', this.game);
           },
           undoTrade: function(playerId, cardIndex) {
             const card = this.pullCardFromPlayer(playerId, cardIndex, true);
@@ -450,7 +456,7 @@
 
             this.game.players[card.playerId].traded = false;
 
-            socket.emit('played', this.game);
+            socket.emit('sendGameChanges', this.game);
           },
           join: function(playerId) {
             if (this.myPlayerId != null) {
@@ -461,7 +467,7 @@
 
             myPlayerId = playerId;
             this.myPlayerId = playerId;
-            socket.emit('played', this.game);
+            socket.emit('sendUpdatedPlayer', playerId, { claimed: true });
           },
           updateScores: function() {
             for (let i = 0; i < 4; i++) {
