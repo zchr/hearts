@@ -202,7 +202,17 @@
           this.myPlayerId = myPlayerId;
 
           socket.on('updateGame', updates => { 
-            this.game = updates;
+            const {players, ...game} = updates;
+
+            if (players) {
+              for (let i = 0; i < 4; i++) {
+                Vue.set(this.game.players, i, Object.assign({}, this.game.players[i], players[i]))
+              }
+            }
+
+            this.game = Object.assign({}, this.game, game);
+            console.log(updates);
+            console.log(this.game);
           });
 
           socket.on('updatePlayer', (playerId, updates) => {
@@ -289,20 +299,15 @@
               await this.shuffle();
             }
 
-            this.game.round += 1;
-
-            // reset the game
-            for (let i = 0; i < 4; i++) {
-              this.game.players[i].cards = [];
-              this.game.players[i].traded = this.game.round % 4 == 0; // no need to trade every 4th round
-              this.game.players[i].cardsFromTrade = [];
-              this.game.players[i].cardsFromTricks= [];
-            }
-
-            this.game.trick = [];
-
             const cardPayload = await this.getCards();
             const cards = cardPayload.cards;
+
+            // reset the game
+            this.game.round++; 
+
+            for (let i = 0; i < 4; i++) {
+              this.game.players[i].cards = [];
+            }
 
             for (let i = 0; i < cards.length; i++) {
               const card = cards[i];
@@ -329,20 +334,28 @@
 
             // If no trades occur, start the round
             if (this.game.round % 4 == 0) {
-              let startingPlayerId;
-
-              for (let i = 0; i < 4; i++) {
-                if (this.game.players[i].cards.map(card => card.code).includes('2C')) {
-                  startingPlayerId = i;
-                }
-              }
-
-              // Start the round with whomever has the 2 of clubs
-              this.setTurnStack(startingPlayerId);
+              this.setInitialTurnStack();
             }
 
-            // this is a big enough change that the whole game should be resent
-            socket.emit('sendGameChanges', this.game);
+            // send the diff
+            let playerDiff = [null, null, null, null];
+
+            for (let i = 0; i < 4; i++) {
+              playerDiff[i] = {
+                cards: this.game.players[i].cards,
+                traded: this.game.round % 4 == 0, // no need to trade every 4th round
+                cardsFromTrade: [],
+                cardsFromTricks: []
+              }
+            }
+
+            socket.emit('sendGameChanges', {
+              deck: this.game.deck,
+              round: this.game.round,
+              turnStack: this.game.turnStack,
+              trick: [],
+              players: playerDiff
+            });
           },
           sort: function() {
             const suitOrder = { /* black, red, black, red */
@@ -370,7 +383,16 @@
             this.game.trick.push(card);
             this.game.turnStack.pop();
 
-            socket.emit('sendGameChanges', this.game);
+            let playerDiff = [null, null, null, null];
+            playerDiff[playerId] = {
+              cards: this.game.players[playerId].cards,
+            }
+
+            socket.emit('sendGameChanges', { 
+              trick: this.game.trick,
+              turnStack: this.game.turnStack,
+              players: playerDiff
+            });
           },
           undoPlay: function(cardIndex) {
             const card = this.game.trick.splice(cardIndex, 1)[0];
@@ -378,7 +400,16 @@
             this.game.players[card.playerId].cards.push(card);
             this.game.turnStack.push(card.playerId);
 
-            socket.emit('sendGameChanges', this.game);
+            let playerDiff = [null, null, null, null];
+            playerDiff[card.playerId] = {
+              cards: this.game.players[card.playerId].cards
+            }
+
+            socket.emit('sendGameChanges', {
+              trick: this.game.trick,
+              turnStack: this.game.turnStack,
+              players: playerDiff
+            });
           },
           changeName: function() {
             if (this.me.name.length == 0) {
@@ -400,17 +431,41 @@
             const winningPlayerId = winningCards[0].playerId;
 
             this.game.players[winningPlayerId].cardsFromTricks = this.game.players[winningPlayerId].cardsFromTricks.concat(this.game.trick);
-            this.game.trick = [];
 
             // round is over; assign points
+            this.game.trick = [];
+
             if (this.game.players[0].cards == 0) {
-              this.updateScores();
+              this.updatePoints();
             } else {
               // winning player goes next
               this.setTurnStack(winningPlayerId);
             }
 
-            socket.emit('sendGameChanges', this.game);
+            let playerDiff = [null, null, null, null];
+            for (let i = 0; i < 4; i++) {
+              playerDiff[i] = {
+                points: this.game.players[i].points
+              }
+            }
+
+            playerDiff[winningPlayerId].cardsFromTricks = this.game.players[winningPlayerId].cardsFromTricks;
+
+            socket.emit('sendGameChanges', {
+              trick: [],
+              players: playerDiff,
+              turnStack: this.game.turnStack
+            });
+          },
+          setInitialTurnStack: function() {
+            for (let i = 0; i < 4; i++) {
+              this.game.players[i].cards = this.game.players[i].cards.concat(this.game.players[i].cardsFromTrade);
+              this.game.players[i].cardsFromTrade = []; 
+
+              if (this.game.players[i].cards.map(card => card.code).includes('2C')) {
+                return this.setTurnStack(i);
+              }
+            }
           },
           setTurnStack: function(playerId) {
             const reverseTurnOrder = [];
@@ -428,35 +483,55 @@
             const receivingPlayerId = this.getTradePartner(this.game.round, playerId);
             this.game.players[receivingPlayerId].cardsFromTrade.push(card);
 
+            let playerDiff = [null, null, null, null];
+
             if (this.game.players[playerId].cards.length == 10) {
               this.game.players[playerId].traded = true;
-            }
 
-            if (this.allPlayersTraded) {
-              let startingPlayerId;
+              if (this.allPlayersTraded) {
+                this.setInitialTurnStack();
 
-              for (let i = 0; i < 4; i++) {
-                this.game.players[i].cards = this.game.players[i].cards.concat(this.game.players[i].cardsFromTrade);
-                this.game.players[i].cardsFromTrade = []; 
-
-                if (this.game.players[i].cards.map(card => card.code).includes('2C')) {
-                  startingPlayerId = i;
+                for (let i = 0; i < 4; i++) {
+                  playerDiff[i] = {
+                    cards: this.game.players[i].cards,
+                    traded: this.game.players[i].traded,
+                  }
+                }
+              } else {
+                playerDiff[playerId] = {
+                  cards: this.game.players[playerId].cards,
+                  traded: this.game.players[playerId].traded,
+                }
+                playerDiff[receivingPlayerId] = {
+                  cardsFromTrade: this.game.players[receivingPlayerId].cardsFromTrade,
                 }
               }
-
-              // Start the round with whomever has the 2 of clubs
-              this.setTurnStack(startingPlayerId);
             }
 
-            socket.emit('sendGameChanges', this.game);
+            socket.emit('sendGameChanges', { 
+              turnStack: this.game.turnStack,
+              players: playerDiff
+            });
           },
-          undoTrade: function(playerId, cardIndex) {
-            const card = this.pullCardFromPlayer(playerId, cardIndex, true);
-            this.game.players[card.playerId].cards.push(card);
+          undoTrade: function(tradedToPlayerId, cardIndex) {
+            const card = this.pullCardFromPlayer(tradedToPlayerId, cardIndex, true);
+            const playerId = card.playerId;
+            this.game.players[playerId].cards.push(card);
 
-            this.game.players[card.playerId].traded = false;
+            let playerDiff = [null, null, null, null];
+            playerDiff[playerId] = {
+              cards: this.game.players[playerId].cards,
+              traded: false,
+            }
 
-            socket.emit('sendGameChanges', this.game);
+            playerDiff[tradedToPlayerId] = {
+              cardsFromTrade: this.game.players[tradedToPlayerId].cardsFromTrade,
+            }
+
+            socket.emit('sendGameChanges', { 
+              turnStack: this.game.turnStack,
+              players: playerDiff
+            });
           },
           join: function(playerId) {
             if (this.myPlayerId != null) {
@@ -467,9 +542,10 @@
 
             myPlayerId = playerId;
             this.myPlayerId = playerId;
+
             socket.emit('sendUpdatedPlayer', playerId, { claimed: true });
           },
-          updateScores: function() {
+          updatePoints: function() {
             for (let i = 0; i < 4; i++) {
               const codes = this.game.players[i].cardsFromTricks.map(card => card.code);
               const hearts = this.game.players[i].cardsFromTricks.filter(card => card.suit == 'HEARTS').length;
