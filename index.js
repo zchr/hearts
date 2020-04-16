@@ -7,8 +7,8 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, './views'));
 
 app.use(function(req, res, next) {
-    if(!(req.secure || req.get('Host') == 'localhost:9090')) {
-      return res.redirect(['https://', req.get('Host'), req.url].join(''));
+    if(process.env.NODE_ENV == 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(`https://${req.get('Host')}${req.url}`);
     }
     next();
 });
