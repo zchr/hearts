@@ -29,14 +29,14 @@ io.on('connection', function(socket) {
     socket.on('sendGameChanges', function(updates, fullGameUpdate) {
         const gameId = getGameId();
         if (gameId) {
-            socket.broadcast.to(gameId).emit('updateGame', updates, fullGameUpdate);
+            socket.nsp.to(gameId).emit('updateGame', updates, fullGameUpdate);
         }
     });
 
     socket.on('sendUpdatedPlayer', function(playerId, updates) {
         const gameId = getGameId();
         if (gameId) {
-            socket.broadcast.to(gameId).emit('updatePlayer', playerId, updates);
+            socket.nsp.to(gameId).emit('updatePlayer', playerId, updates);
         }
     });
 
@@ -46,6 +46,7 @@ io.on('connection', function(socket) {
 
     socket.on('join', function(gameId) {
         socket.join(gameId, () => {
+            socket._gameId = gameId;
             const players = Object.keys(io.sockets.adapter.rooms[gameId].sockets);
 
             if (players.length > 1) {
@@ -55,6 +56,10 @@ io.on('connection', function(socket) {
                 socket.to(anotherPlayer).emit('requestGame', socket.id);
             }
         });
+    });
+
+    socket.on('disconnect', function() {
+        socket.to(socket._gameId).emit('left', socket.id);
     });
 });
 
