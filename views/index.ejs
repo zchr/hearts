@@ -24,6 +24,9 @@
       </form>
     </nav>
     <div id="app" class="container-fluid mt-6">
+      <div v-if="socketError" class="alert alert-danger" >
+        {{ socketError }}
+      </div>
       <div class="row mt-3">
         <div class="col-sm-12">
           <ul class="list-group list-group-horizontal overflow-auto">
@@ -122,12 +125,6 @@
           </ul>
         </div>
       </div>
-      <div>
-        <p>Debugging:</p>
-        <ul>
-          <li v-for="debug in socketDetails">{{ debug }}</li>
-        </ul>
-      </div>
     </div>
     <script>
       const gameUrl = document.getElementById('game-url');
@@ -151,7 +148,7 @@
       new Vue({
         el: '#app',
         data: {
-          socketDetails: [],
+          socketError: null,
           myPlayerId: null,
           editingName: false,
           cardInvalidReason: null,
@@ -206,16 +203,18 @@
           socket.on('connect', () => {
             socketId = socket.id;
             socket.emit('join', gameId);
-            this.socketDetails.push('Connected!')
+            this.socketError = null; 
+
+            this.onePlayerUpdatesGame();
           });
 
           socket.on('reconnect_attempt', () =>{
-            this.socketDetails.push('Reconnecting...')
-          })
+            this.socketError = 'Reconnecting... If this persists, try refreshing';
+          });
 
           socket.on('disconnect', () => {
-            this.socketDetails.push('Disconnected')
-          })
+            this.socketError = 'Disconnected :( I suggest refreshing the page';
+          });
 
           socket.on('updateGame', updates => { 
             const {players, ...game} = updates;
@@ -229,37 +228,7 @@
             this.game = Object.assign({}, this.game, game);
             console.log(updates);
 
-            /** Commands that affect all players should only be initiated by one person
-              E.g., dealing should only happen by one person, same for
-                - Taking a trick (controlled by winner)
-                - Ending trading (controlled by whomever goes first)
-
-              We should keep track of the game state within a round. State can be
-                - Waiting to deal
-                - Waiting for trades
-                - Waiting on trick
-             */
-
-              if (this.game.roundStatus == 'WAITING FOR TRADES' && this.allPlayersTraded) {
-                if (this.has2C()) {
-                  this.setTurnStack(this.me.id);
-
-                  socket.emit('sendGameChanges', {
-                    roundStatus: 'WAITING ON TRICK',
-                    turnStack: this.game.turnStack,
-                    players: this.game.players.map(p => { 
-                      return {
-                        cards: p.cards.concat(p.cardsReceived),
-                        cardsReceived: []
-                      }
-                    })
-                  });
-                }
-              } else if (this.game.roundStatus == 'WAITING ON TRICK' && this.game.trick.length == 4) {
-                if (this.wonTrick()) {
-                  this.endTrick();
-                }
-              }
+            this.onePlayerUpdatesGame();
           });
 
           socket.on('updatePlayer', (playerId, updates) => {
@@ -302,6 +271,39 @@
           }
         },
         methods: {
+          onePlayerUpdatesGame: function() {
+              /** Commands that affect all players should only be initiated by one person
+              E.g., dealing should only happen by one person, same for
+                - Taking a trick (controlled by winner)
+                - Ending trading (controlled by whomever goes first)
+
+              We should keep track of the game state within a round. State can be
+                - Waiting to deal
+                - Waiting for trades
+                - Waiting on trick
+             */
+
+             if (this.game.roundStatus == 'WAITING FOR TRADES' && this.allPlayersTraded) {
+                if (this.has2C()) {
+                  this.setTurnStack(this.me.id);
+
+                  socket.emit('sendGameChanges', {
+                    roundStatus: 'WAITING ON TRICK',
+                    turnStack: this.game.turnStack,
+                    players: this.game.players.map(p => { 
+                      return {
+                        cards: p.cards.concat(p.cardsReceived),
+                        cardsReceived: []
+                      }
+                    })
+                  });
+                }
+              } else if (this.game.roundStatus == 'WAITING ON TRICK' && this.game.trick.length == 4) {
+                if (this.wonTrick()) {
+                  this.endTrick();
+                }
+              }
+          },
           deal: async function() {
             // if mid-round, confirm that you want to re-deal
             if (this.game.roundStatus != 'WAITING TO DEAL') {
