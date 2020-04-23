@@ -122,6 +122,12 @@
           </ul>
         </div>
       </div>
+      <div>
+        <p>Debugging:</p>
+        <ul>
+          <li v-for="debug in socketDetails">{{ debug }}</li>
+        </ul>
+      </div>
     </div>
     <script>
       const gameUrl = document.getElementById('game-url');
@@ -137,6 +143,7 @@
     <script>
       let myPlayerId = null;
       let socketId = null;
+      const gameId = window.location.pathname.replace('game/');
 
       const socket = io();
     </script>
@@ -144,6 +151,7 @@
       new Vue({
         el: '#app',
         data: {
+          socketDetails: [],
           myPlayerId: null,
           editingName: false,
           cardInvalidReason: null,
@@ -195,9 +203,19 @@
         created: function() {
           this.myPlayerId = myPlayerId;
 
-          socket.on('connect', function() {
+          socket.on('connect', () => {
             socketId = socket.id;
+            socket.emit('join', gameId);
+            this.socketDetails.push('Connected!')
           });
+
+          socket.on('reconnect_attempt', () =>{
+            this.socketDetails.push('Reconnecting...')
+          })
+
+          socket.on('disconnect', () => {
+            this.socketDetails.push('Disconnected')
+          })
 
           socket.on('updateGame', updates => { 
             const {players, ...game} = updates;
@@ -251,9 +269,6 @@
           socket.on('requestGame', (socketId) => {
             socket.emit('sendGame', socketId, this.game);
           });
-
-          const gameId = window.location.pathname.replace('game/');
-          socket.emit('join', gameId);
 
           socket.on('left', (socketId) => {
             for (let i = 0; i < 4; i++) {
